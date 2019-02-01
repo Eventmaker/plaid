@@ -44,7 +44,6 @@ import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.ImageSpan;
 import android.transition.TransitionManager;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -88,6 +87,7 @@ import io.plaidapp.core.ui.HomeGridItemAnimator;
 import io.plaidapp.core.ui.PlaidItemsList;
 import io.plaidapp.core.ui.filter.FilterAdapter;
 import io.plaidapp.core.ui.filter.FilterAnimator;
+import io.plaidapp.core.ui.filter.SourcesHighlightUiModel;
 import io.plaidapp.core.ui.recyclerview.InfiniteScrollListener;
 import io.plaidapp.core.ui.transitions.FabTransform;
 import io.plaidapp.core.util.Activities;
@@ -143,16 +143,17 @@ public class HomeActivity extends FragmentActivity {
         });
 
         filtersAdapter = new FilterAdapter();
-        filtersAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
-            @Override
-            public void onItemRangeInserted(int positionStart, int itemCount) {
-                Log.d("flo", "flo start " + positionStart + " count " + itemCount);
-                highlightPosition(positionStart + itemCount);
-                super.onItemRangeInserted(positionStart, itemCount);
+
+        viewModel.getSources().observe(this, sourcesUiModel -> {
+            filtersAdapter.submitList(sourcesUiModel.getSourceUiModels());
+            if (sourcesUiModel.getHighlightSources() != null){
+                SourcesHighlightUiModel highlightUiModel =
+                        sourcesUiModel.getHighlightSources().consume();
+                if(highlightUiModel != null) {
+                    highlightPosition(highlightUiModel);
+                }
             }
         });
-
-        viewModel.getSources().observe(this, sources -> filtersAdapter.submitList(sources));
         viewModel.getSourceRemoved().observe(this, source -> {
             adapter.removeDataSource(source.key);
             checkEmptyState();
@@ -685,7 +686,7 @@ public class HomeActivity extends FragmentActivity {
      * 3. flashing new source(s) background
      * 4. closing the drawer (if user hasn't interacted with it)
      */
-    private void highlightPosition(int lastPosition) {
+    private void highlightPosition(SourcesHighlightUiModel uiModel) {
         final Runnable closeDrawerRunnable = () -> drawer.closeDrawer(GravityCompat.END);
         drawer.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
 
@@ -701,8 +702,9 @@ public class HomeActivity extends FragmentActivity {
             @Override
             public void onDrawerOpened(View drawerView) {
                 // scroll to the new item(s)
-                filtersList.smoothScrollToPosition(lastPosition);
+                filtersList.smoothScrollToPosition(uiModel.getScrollToPosition());
                 filtersList.setOnTouchListener(filtersTouch);
+                filtersAdapter.highlightPositions(uiModel.getHighlightPositions());
             }
 
             @Override
